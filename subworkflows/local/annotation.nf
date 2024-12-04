@@ -8,7 +8,6 @@ workflow ANNOTATION {
     take:
     regions
     ch_gtf
-    exon_boundary
     ch_annotation
 
     main:
@@ -33,8 +32,7 @@ workflow ANNOTATION {
         .join(INTERSECT_DATABASE.out.intersect
             .map{ meta, bed -> [meta.original_meta, bed] }
             .groupTuple(), remainder: true)
-        .map{ meta, gtf_intersection, db_intersections -> [meta, gtf_intersection, db_intersections ?: []]},
-        exon_boundary )
+        .map{ meta, gtf_intersection, db_intersections -> [meta, gtf_intersection, db_intersections ?: []]})
     ch_versions = ch_versions.mix(ANNOTATE.out.versions)
 
     emit:

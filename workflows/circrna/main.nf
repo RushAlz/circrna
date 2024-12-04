@@ -130,8 +130,7 @@ workflow CIRCRNA {
         chromosomes,
         hisat2_index,
         star_index,
-        params.bsj_reads,
-        params.exon_boundary
+        params.bsj_reads
     )
 
     ch_multiqc_files  = ch_multiqc_files.mix(BSJ_DETECTION.out.multiqc_files)
@@ -157,6 +156,7 @@ workflow CIRCRNA {
         COMBINE_TRANSCRIPTOMES.out.gtf,
         BSJ_DETECTION.out.bed12,
         BSJ_DETECTION.out.gtf,
+        BSJ_DETECTION.out.bed_per_sample_tool,
         params.bootstrap_samples,
         ch_phenotype,
         PREPARE_GENOME.out.faidx,

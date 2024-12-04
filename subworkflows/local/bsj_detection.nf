@@ -1,14 +1,16 @@
 // MODULES
-include { GAWK as EXTRACT_COUNTS                     } from '../../modules/nf-core/gawk'
-include { CSVTK_JOIN as COMBINE_COUNTS_PER_TOOL      } from '../../modules/nf-core/csvtk/join'
-include { GAWK as FILTER_BSJS                        } from '../../modules/nf-core/gawk'
-include { GAWK as BED_ADD_SAMPLE_TOOL                } from '../../modules/nf-core/gawk'
-include { COMBINE_BEDS as COMBINE_TOOLS_PER_SAMPLE   } from '../../modules/local/combine_beds'
-include { COMBINE_BEDS as COMBINE_SAMPLES            } from '../../modules/local/combine_beds'
-include { BEDTOOLS_GETFASTA as FASTA_COMBINED        } from '../../modules/nf-core/bedtools/getfasta'
-include { BEDTOOLS_GETFASTA as FASTA_PER_SAMPLE      } from '../../modules/nf-core/bedtools/getfasta'
-include { BEDTOOLS_GETFASTA as FASTA_PER_SAMPLE_TOOL } from '../../modules/nf-core/bedtools/getfasta'
-include { FAIL_ON_EMPTY                              } from '../../modules/local/fail_on_empty'
+include { GAWK as EXTRACT_COUNTS                         } from '../../modules/nf-core/gawk'
+include { CSVTK_JOIN as COMBINE_COUNTS_PER_TOOL          } from '../../modules/nf-core/csvtk/join'
+include { GAWK as FILTER_BSJS                            } from '../../modules/nf-core/gawk'
+include { GAWK as BED_ADD_SAMPLE_TOOL                    } from '../../modules/nf-core/gawk'
+include { COMBINEBEDS_FILTER as COMBINE_TOOLS_PER_SAMPLE } from '../../modules/local/combinebeds/filter'
+include { COMBINEBEDS_FILTER as COMBINE_SAMPLES          } from '../../modules/local/combinebeds/filter'
+include { AGAT_SPADDINTRONS as ADD_INTRONS          } from '../../modules/nf-core/agat/spaddintrons'
+include { GAWK as EXTRACT_EXONS_INTRONS             } from '../../modules/nf-core/gawk'
+include { BEDTOOLS_GETFASTA as FASTA_COMBINED            } from '../../modules/nf-core/bedtools/getfasta'
+include { BEDTOOLS_GETFASTA as FASTA_PER_SAMPLE          } from '../../modules/nf-core/bedtools/getfasta'
+include { BEDTOOLS_GETFASTA as FASTA_PER_SAMPLE_TOOL     } from '../../modules/nf-core/bedtools/getfasta'
+include { FAIL_ON_EMPTY                                  } from '../../modules/local/fail_on_empty'
 
 // SUBWORKFLOWS
 include { SEGEMEHL                               } from './detection_tools/segemehl'
@@ -37,7 +39,6 @@ workflow BSJ_DETECTION {
     hisat2_index
     star_index
     bsj_reads
-    exon_boundary
 
     main:
     ch_versions                = Channel.empty()
@@ -139,6 +140,7 @@ workflow BSJ_DETECTION {
             .map{ meta, bed -> [ [id: meta.id], bed ] }
             .groupTuple(),
         params.max_shift,
+        params.consider_strand,
         params.min_tools,
         1
     )
@@ -149,6 +151,7 @@ workflow BSJ_DETECTION {
     COMBINE_SAMPLES(
         ch_bsj_bed_per_sample_tool_meta.map{ meta, bed -> [[id: "all"], bed] }.groupTuple(),
         params.max_shift,
+        params.consider_strand,
         params.min_tools,
         params.min_samples
     )
@@ -161,17 +164,23 @@ workflow BSJ_DETECTION {
     // ANNOTATION
     //
 
-    ANNOTATE_COMBINED( ch_bsj_bed_combined, ch_gtf, exon_boundary, ch_annotation )
+    ADD_INTRONS(ch_gtf, [])
+    ch_versions = ch_versions.mix(ADD_INTRONS.out.versions)
+
+    EXTRACT_EXONS_INTRONS( ADD_INTRONS.out.gff, [] )
+    ch_versions = ch_versions.mix(EXTRACT_EXONS_INTRONS.out.versions)
+
+    ANNOTATE_COMBINED( ch_bsj_bed_combined, EXTRACT_EXONS_INTRONS.out.output, ch_annotation )
     ch_versions           = ch_versions.mix(ANNOTATE_COMBINED.out.versions)
     ch_bsj_bed12_combined = ANNOTATE_COMBINED.out.bed.collect()
     ch_bsj_gtf_combined   = ANNOTATE_COMBINED.out.gtf.collect()
 
-    ANNOTATE_PER_SAMPLE( ch_bsj_bed_per_sample, ch_gtf, exon_boundary, ch_annotation )
+    ANNOTATE_PER_SAMPLE( ch_bsj_bed_per_sample, EXTRACT_EXONS_INTRONS.out.output, ch_annotation )
     ch_versions             = ch_versions.mix(ANNOTATE_PER_SAMPLE.out.versions)
     ch_bsj_bed12_per_sample = ANNOTATE_PER_SAMPLE.out.bed
     ch_bsj_gtf_per_sample   = ANNOTATE_PER_SAMPLE.out.gtf
 
-    ANNOTATE_PER_SAMPLE_TOOL( ch_bsj_bed_per_sample_tool, ch_gtf, exon_boundary, ch_annotation )
+    ANNOTATE_PER_SAMPLE_TOOL( ch_bsj_bed_per_sample_tool, EXTRACT_EXONS_INTRONS.out.output, ch_annotation )
     ch_versions                  = ch_versions.mix(ANNOTATE_PER_SAMPLE_TOOL.out.versions)
     ch_bsj_bed12_per_sample_tool = ANNOTATE_PER_SAMPLE_TOOL.out.bed
     ch_bsj_gtf_per_sample_tool   = ANNOTATE_PER_SAMPLE_TOOL.out.gtf
@@ -212,6 +221,8 @@ workflow BSJ_DETECTION {
     bed12         = ch_bsj_bed12_combined
     gtf           = ch_bsj_gtf_combined
     fasta         = ch_bsj_fasta_combined
+
+    bed_per_sample_tool = ch_bsj_bed_per_sample_tool_meta
 
     multiqc_files = ch_multiqc_files
     versions      = ch_versions
