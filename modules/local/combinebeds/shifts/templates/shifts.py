@@ -80,32 +80,30 @@ metrics = {
     "n_tools": "Number of tools"
 }
 
-for metric, consider_strand in product(metrics, consider_strands):
-    title = metrics[metric]
+for metric, title in metrics.items():
     n_unique = df.filter(pl.col("metric") == metric).select("value").n_unique("value")
     df_ = df.filter(pl.col("metric") == metric)
     plot = df_.plot.bar(x="max_shift:N", y="count", color=f"value:{("Q" if n_unique > 10 else "N")}", column="consider_strand")
     plot = plot.properties(title=title)
 
-    prefix = f"{metric}_{'strand' if consider_strand else 'no_strand'}"
-    plot_file = f"{prefix}.png"
+    plot_file = f"{metric}.png"
     plot.save(plot_file)
 
     image_string = base64.b64encode(open(plot_file, "rb").read()).decode("utf-8")
     image_html = f'<div class="mqc-custom-content-image"><img src="data:image/png;base64,{image_string}" /></div>'
 
     multiqc = {
-        'id': f"{meta_id}_shifts_{prefix}",
+        'id': f"{meta_id}_shifts_{metric}",
         'parent_id': "shift_plots",
         'parent_name': 'Shift Plots',
         'parent_description': 'Stacked bar plots showing the agreement between tools and samples for different shift values',
-        'section_name': f'{title}, {"considering" if consider_strand else "ignoring"} strand',
+        'section_name': title,
         'description': f'Stacked bar plot showing the agreement between tools and samples for different shift values, {"considering" if consider_strand else "ignoring"} strand',
         'plot_type': 'image',
         'data': image_html
     }
 
-    with open(f"{prefix}.shifts_mqc.json", "w") as f:
+    with open(f"{metric}.shifts_mqc.json", "w") as f:
         f.write(json.dumps(multiqc, indent=4))
 
 # Versions
