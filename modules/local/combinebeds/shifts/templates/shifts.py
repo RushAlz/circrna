@@ -99,8 +99,8 @@ for metric, consider_strand in product(metrics, consider_strands):
         'parent_id': "shift_plots",
         'parent_name': 'Shift Plots',
         'parent_description': 'Stacked bar plots showing the agreement between tools and samples for different shift values',
-        'section_name': f'Shifts {prefix}: {meta_id} ',
-        'description': f'Stacked bar plot showing the overlap between {prefix} for {meta_id}',
+        'section_name': f'{title}, {"considering" if consider_strand else "ignoring"} strand',
+        'description': f'Stacked bar plot showing the agreement between tools and samples for different shift values, {"considering" if consider_strand else "ignoring"} strand',
         'plot_type': 'image',
         'data': image_html
     }
