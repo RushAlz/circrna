@@ -4,9 +4,10 @@ include { CSVTK_JOIN as COMBINE_COUNTS_PER_TOOL          } from '../../modules/n
 include { GAWK as FILTER_BSJS                            } from '../../modules/nf-core/gawk'
 include { GAWK as BED_ADD_SAMPLE_TOOL                    } from '../../modules/nf-core/gawk'
 include { COMBINEBEDS_FILTER as COMBINE_TOOLS_PER_SAMPLE } from '../../modules/local/combinebeds/filter'
+include { COMBINEBEDS_SHIFTS as INVESTIGATE_SHIFTS       } from '../../modules/local/combinebeds/shifts'
 include { COMBINEBEDS_FILTER as COMBINE_SAMPLES          } from '../../modules/local/combinebeds/filter'
-include { AGAT_SPADDINTRONS as ADD_INTRONS          } from '../../modules/nf-core/agat/spaddintrons'
-include { GAWK as EXTRACT_EXONS_INTRONS             } from '../../modules/nf-core/gawk'
+include { AGAT_SPADDINTRONS as ADD_INTRONS               } from '../../modules/nf-core/agat/spaddintrons'
+include { GAWK as EXTRACT_EXONS_INTRONS                  } from '../../modules/nf-core/gawk'
 include { BEDTOOLS_GETFASTA as FASTA_COMBINED            } from '../../modules/nf-core/bedtools/getfasta'
 include { BEDTOOLS_GETFASTA as FASTA_PER_SAMPLE          } from '../../modules/nf-core/bedtools/getfasta'
 include { BEDTOOLS_GETFASTA as FASTA_PER_SAMPLE_TOOL     } from '../../modules/nf-core/bedtools/getfasta'
@@ -148,8 +149,12 @@ workflow BSJ_DETECTION {
     ch_bsj_bed_per_sample = COMBINE_TOOLS_PER_SAMPLE.out.combined
         .filter{ meta, bed -> !bed.isEmpty() }
 
+    ch_all_samples = ch_bsj_bed_per_sample_tool_meta
+        .map{ meta, bed -> [[id: "all"], bed] }
+        .groupTuple()
+
     COMBINE_SAMPLES(
-        ch_bsj_bed_per_sample_tool_meta.map{ meta, bed -> [[id: "all"], bed] }.groupTuple(),
+        ch_all_samples,
         params.max_shift,
         params.consider_strand,
         params.min_tools,
@@ -159,6 +164,10 @@ workflow BSJ_DETECTION {
     ch_bsj_bed_combined = COMBINE_SAMPLES.out.combined
         .filter{ meta, bed -> !bed.isEmpty() }
         .collect()
+
+    INVESTIGATE_SHIFTS(ch_all_samples)
+    ch_versions = ch_versions.mix(INVESTIGATE_SHIFTS.out.versions)
+    ch_multiqc_files = INVESTIGATE_SHIFTS.out.multiqc
 
     //
     // ANNOTATION
